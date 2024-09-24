@@ -29,12 +29,12 @@ The base class **envs.ManagerBasedEnv** wraps around many intricacies of the sim
 1. Used **managers.ActionManager** instead of assets.Articulation.set_joint_effort_target()
 2. Each action term is responsible for applying control over a specific aspect of the environment. eg:  for robotic arm, we can have two action terms – one for controlling the joints of the arm, and the other for controlling the gripper. This composition allows the user to define different control schemes for different aspects of the environment.
 
-'''
+```python
 @configclass
 class ActionsCfg:
     """Action specifications for the environment."""
 
     joint_efforts = mdp.JointEffortActionCfg(asset_name="robot", joint_names=["slider_to_cart"], scale=5.0)
-'''
+```
 
 #### Observation
