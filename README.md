@@ -189,3 +189,98 @@ def main():
     # close the environment
     env.close()
 ```
+
+### Manager-Based RL Env
+Base env designed for traditional motion planning and controls. Using **envs.ManagerBasedRLEnvCfg** for task environment,this practice allows to separate the task specification from the environment implementation
+
+Isaaclab provide various implementations of different terms in the envs.mdp module.These are usually placed in their task-specific sub-package (for instance, in omni.isaac.lab_tasks.manager_based.classic.cartpole.mdp).
+
+#### Reward
+1. **managers.RewardManager** used to compute the reward terms for agent,and its term are configured using **managers.RewardTermCfg**
+2. The **managers.RewardTermCfg** class specifies the function or callable class that computes the reward as well as the weighting associated with it. It also takes in dictionary of arguments, "params" that are passed to the reward function when it is called.
+
+```python
+from omni.isaac.lab.managers import RewardTermCfg as RewTerm
+@configclass
+class RewardsCfg:
+    """Reward terms for the MDP."""
+
+    # (1) Constant running reward
+    alive = RewTerm(func=mdp.is_alive, weight=1.0)
+    # (2) Failure penalty
+    terminating = RewTerm(func=mdp.is_terminated, weight=-2.0)
+    # (3) Primary task: keep pole upright
+    pole_pos = RewTerm(
+        func=mdp.joint_pos_target_l2,
+        weight=-1.0,
+        params={"asset_cfg": SceneEntityCfg("robot", joint_names=["cart_to_pole"]), "target": 0.0},
+    )
+    # (4) Shaping tasks: lower cart velocity
+    cart_vel = RewTerm(
+        func=mdp.joint_vel_l1,
+        weight=-0.01,
+        params={"asset_cfg": SceneEntityCfg("robot", joint_names=["slider_to_cart"])},
+    )
+    # (5) Shaping tasks: lower pole angular velocity
+    pole_vel = RewTerm(
+        func=mdp.joint_vel_l1,
+        weight=-0.005,
+        params={"asset_cfg": SceneEntityCfg("robot", joint_names=["cart_to_pole"])},
+    )
+```
+In this example, we have following reward term:
+- Alive Reward: Encourage the agent to stay alive for as long as possible.
+
+- Terminating Reward: Similarly penalize the agent for terminating.
+
+- Pole Angle Reward: Encourage the agent to keep the pole at the desired upright position.
+
+- Cart Velocity Reward: Encourage the agent to keep the cart velocity as small as possible.
+
+- Pole Velocity Reward: Encourage the agent to keep the pole velocity as small as possible.
+
+#### Termination criteria
+The **managers.TerminationsCfg** configures what constitutes for an episode to terminate.
+
+we have two type of termination
+1. time out ---> **managers.TerminationsCfg.time_out** flag
+2. out of bounds --->stop because  robot is getting into unstable state (we defined)
+
+```python
+from omni.isaac.lab.managers import TerminationTermCfg as DoneTerm
+@configclass
+class TerminationsCfg:
+    """Termination terms for the MDP."""
+
+    # (1) Time out
+    time_out = DoneTerm(func=mdp.time_out, time_out=True)
+    # (2) Cart out of bounds
+    cart_out_of_bounds = DoneTerm(
+        func=mdp.joint_pos_out_of_manual_limit,
+        params={"asset_cfg": SceneEntityCfg("robot", joint_names=["slider_to_cart"]), "bounds": (-3.0, 3.0)},
+    )
+```
+
+#### Commands
+For various goal-conditioned tasks, it is useful to specify the goals or commands for the agent. These are handled through the managers.CommandManager. The command manager handles resampling and updating the commands at each step. It can also be used to provide the commands as an observation to the agent.
+
+```python
+@configclass
+class CommandsCfg:
+    """Command terms for the MDP."""
+
+    # no commands for this MDP
+    null = mdp.NullCommandCfg()
+```
+
+#### Curriculum
+Often times when training a learning agent, it helps to start with a simple task and gradually increase the tasks’s difficulty as the agent training progresses. This is the idea behind curriculum learning.**managers.CurriculumManager** class that can be used to define a curriculum for  environment.
+```python
+@configclass
+class CurriculumCfg:
+    """Configuration for the curriculum."""
+
+    pass
+```
+
+#### All together
